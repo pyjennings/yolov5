@@ -24,6 +24,8 @@ from utils.general import LOGGER, check_version, check_yaml, make_divisible, pri
 from utils.plots import feature_visualization
 from utils.torch_utils import fuse_conv_and_bn, initialize_weights, model_info, scale_img, select_device, time_sync
 
+import torch_ext
+
 try:
     import thop  # for FLOPs computation
 except ImportError:
@@ -67,7 +69,29 @@ class Detect(nn.Module):
                     y = torch.cat((xy, wh, y[..., 4:]), -1)
                 z.append(y.view(bs, -1, self.no))
 
-        return x if self.training else (torch.cat(z, 1), x)
+        if self.training:
+            return x
+        else:
+            detect_out = torch.cat(z, 1)
+            b_out = []
+            for b in detect_out:
+                wh = b[:, 2:4]/2.0
+                center = b[:, 0:2]
+                x0y0 = center - wh  # top left xy
+                x1y1 = center + wh  # bottom right xy
+                max_prob, class_idx = torch.max(b[:, 5:], 1)
+                scores = (max_prob * b[:, 4])
+                box = torch.cat((x0y0, x1y1), -1)
+                nms_out = torch_ext.static_batched_nms(box.unsqueeze(0).cpu(),
+                                                       scores.unsqueeze(0).cpu(),
+                                                       class_idx.unsqueeze(0).cpu(),
+                                                       0.6, # iou_thres
+                                                       0.001,  # score_threshold
+                                                       300,  # max_output_size
+                                                       -1,  # top_k
+                                                       True)  #  invalid_to_bottom
+                b_out.append(nms_out)
+            return (b_out, x)
 
     def _make_grid(self, nx=20, ny=20, i=0):
         d = self.anchors[i].device

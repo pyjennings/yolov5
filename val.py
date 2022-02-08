@@ -46,6 +46,7 @@ from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, time_sync
 
 
+
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -200,7 +201,15 @@ def run(data,
         targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         t3 = time_sync()
-        out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls)
+        # out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls)
+
+        nms_out = []
+        for b in out:
+            reorg_out = torch.cat((b[0][:, 2:], b[0][:, 1:2], b[0][:, 0:1]), 1)
+            reorg_out = reorg_out[(reorg_out!=-1).all(1)]
+            nms_out.append(reorg_out.cuda())
+        out = nms_out
+
         dt[2] += time_sync() - t3
 
         # Metrics
