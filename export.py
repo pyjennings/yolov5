@@ -439,7 +439,7 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
 
     for _ in range(2):
         y = model(im)  # dry runs
-    shape = tuple(y[0].shape)  # model output shape
+    shape = tuple(y[0][0].shape)  # model output shape
     LOGGER.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
 
     # Exports
